@@ -1,1 +1,69 @@
-jenkins
+pipeline{
+   agent any
+   tools{
+    maven "maven-3.6.3"
+    
+   }
+   environment{
+        imageName = "raj159/amazon"        
+        registryUrl = "registry.hub.docker.com"
+        registryCreds = 'docker'
+        dockerImage = ''
+    }
+   stages{
+        stage("mvn test"){
+            steps{
+            sh 'mvn clean test'
+            }
+        }
+        stage("sonar-check"){
+            steps{
+                echo "sonar analysis test"
+            }
+        }
+        stage('mvn package'){
+            steps{
+                sh 'mvn clean package -DskipTests=true'
+            }
+        }
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    dir("Amazon-Web"){
+                        dockerImage = docker.build imageName
+                    }
+                }
+            }
+        }
+        stage('Push Docker Image') {
+            steps {
+                // Push the Docker image to a container registry
+                script {
+                    docker.withRegistry("https://${registryUrl}", registryCreds) {
+                        dockerImage.push()
+                    }
+                }
+            }
+        }
+        
+        stage('deploy-docker'){
+            steps{
+                sh 'docker stop amazonimage'
+                sh 'docker rm amazonimage'
+                sh 'docker run -dp 9090:8080 --name amazonimage raj159/amazon:latest'
+            }
+        }
+        stage('docker status'){
+            steps{
+                sh 'docker ps'
+            }
+        }
+        stage("webpage ping"){
+            steps{
+                sh 'curl 52.180.147.40:9090/Amazon'
+            }
+        }
+   }
+}
+
+
